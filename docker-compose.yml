@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  barbershop-db:
+    image: postgres:16
+    container_name: barbershop_postgres
+    environment:
+      POSTGRES_DB: barbershop
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - barbershop_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d barbershop"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - barbershop_network
+
+  barbershop-app:
+    build: .
+    container_name: barbershop_app
+    env_file:
+      - .env
+    depends_on:
+      barbershop-db:
+        condition: service_healthy
+    command: >-
+      bash -lc "
+        alembic upgrade head &&
+        python -m app.run
+      "
+    networks:
+      - barbershop_network
+      - shared_network  # Для доступа из nginx
+
+volumes:
+  barbershop_pgdata:
+
+networks:
+  barbershop_network:
+  shared_network:
+    external: true
