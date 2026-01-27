@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  barbershop-db:
+  db:  # ← Оставьте короткое имя
     image: postgres:16
     container_name: barbershop_postgres
     environment:
@@ -18,13 +18,13 @@ services:
     networks:
       - barbershop_network
 
-  barbershop-app:
+  app:  # ← Оставьте короткое имя
     build: .
     container_name: barbershop_app
     env_file:
       - .env
     depends_on:
-      barbershop-db:
+      db:
         condition: service_healthy
     command: >-
       bash -lc "
@@ -33,7 +33,7 @@ services:
       "
     networks:
       - barbershop_network
-      - shared_network  # Для доступа из nginx
+      - shared_network
 
 volumes:
   barbershop_pgdata:
