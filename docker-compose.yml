@@ -1,7 +1,5 @@
-version: '3.8'
-
 services:
-  db:  # ← Оставьте короткое имя
+  db:
     image: postgres:16
     container_name: barbershop_postgres
     environment:
@@ -18,7 +16,7 @@ services:
     networks:
       - barbershop_network
 
-  app:  # ← Оставьте короткое имя
+  app:
     build: .
     container_name: barbershop_app
     env_file:

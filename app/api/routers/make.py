@@ -25,11 +25,15 @@ class CallbackIn(BaseModel):
 class MasterOut(BaseModel):
     id: int
     name: str
+    description: str | None = None
+    experience_years: int | None = None
     is_active: bool
 
 
 class MasterCreateIn(BaseModel):
     name: str
+    description: str | None = None
+    experience_years: int | None = Field(default=None, ge=0, le=80)
 
 
 class WorkingHoursIn(BaseModel):
@@ -90,17 +94,37 @@ async def make_callback(
 
 @router.post("/masters", dependencies=[Depends(admin_auth)], response_model=MasterOut)
 async def create_master(body: MasterCreateIn, session: AsyncSession = Depends(get_session)) -> MasterOut:
-    m = Master(name=body.name, is_active=True)
+    m = Master(
+        name=body.name,
+        description=body.description,
+        experience_years=body.experience_years,
+        is_active=True,
+    )
     session.add(m)
     await session.commit()
     await session.refresh(m)
-    return MasterOut(id=m.id, name=m.name, is_active=m.is_active)
+    return MasterOut(
+        id=m.id,
+        name=m.name,
+        description=m.description,
+        experience_years=m.experience_years,
+        is_active=m.is_active,
+    )
 
 
 @router.get("/masters", dependencies=[Depends(make_auth)], response_model=list[MasterOut])
 async def list_masters(session: AsyncSession = Depends(get_session)) -> list[MasterOut]:
     ms = (await session.execute(select(Master).order_by(Master.id))).scalars().all()
-    return [MasterOut(id=m.id, name=m.name, is_active=m.is_active) for m in ms]
+    return [
+        MasterOut(
+            id=m.id,
+            name=m.name,
+            description=m.description,
+            experience_years=m.experience_years,
+            is_active=m.is_active,
+        )
+        for m in ms
+    ]
 
 
 @router.delete("/masters/{master_id}", dependencies=[Depends(admin_auth)])
