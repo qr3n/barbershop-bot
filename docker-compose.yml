@@ -15,7 +15,6 @@ services:
       retries: 20
     networks:
       - barbershop_network
-
   app:
     build: .
     container_name: barbershop_app
