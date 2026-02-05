@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     # Telegram
     bot_token: str
+    enable_bot: bool = True
 
     # Make: incoming messages webhook (where we POST any user message)
     make_webhook_url: str
@@ -37,6 +38,19 @@ class Settings(BaseSettings):
     admin_telegram_ids: str = ""
 
     timezone: str = "Europe/Moscow"
+
+    # Media
+    # Directory where uploaded images are stored (mounted as /media)
+    media_root: str = "media"
+    media_url_prefix: str = "/media"
+
+    # Web admin panel (SvelteKit)
+    admin_panel_password: str | None = None
+    admin_session_secret: str | None = None
+    admin_cookie_domain: str | None = None  # e.g. ".example.com" to share across subdomains
+    admin_cookie_secure: bool = True
+    # Comma-separated origins, e.g. "https://admin.example.com"
+    admin_cors_origins: str = ""
 
     @property
     def admin_ids(self) -> FrozenSet[int]:

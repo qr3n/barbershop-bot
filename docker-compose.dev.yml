@@ -24,6 +24,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - ./media:/app/media
     command: >-
       bash -lc "
         alembic upgrade head &&

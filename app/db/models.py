@@ -32,6 +32,8 @@ class Master(Base):
     description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     experience_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Relative path in media storage, e.g. "masters/1.jpg" (one photo per master)
+    photo_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
     working_hours: Mapped[list[WorkingHours]] = relationship(back_populates="master")  # type: ignore[name-defined]

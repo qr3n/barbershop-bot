@@ -15,6 +15,7 @@ services:
       retries: 20
     networks:
       - barbershop_network
+
   app:
     build: .
     container_name: barbershop_app
@@ -30,6 +31,20 @@ services:
       "
     networks:
       - barbershop_network
+      - shared_network
+
+  frontend:
+    image: qren/barbershop-aidronik-frontend
+    container_name: barbershop_frontend
+    restart: unless-stopped
+    environment:
+      # Укажите URL вашего API (будет доступен через api.barbershop.aidronik.com)
+      REACT_APP_API_URL: https://api.barbershop.aidronik.com
+      # или если используете Next.js:
+      NEXT_PUBLIC_API_URL: https://api.barbershop.aidronik.com
+    depends_on:
+      - app
+    networks:
       - shared_network
 
 volumes:

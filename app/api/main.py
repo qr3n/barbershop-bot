@@ -5,6 +5,10 @@ import contextlib
 
 from aiogram import Bot
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+from app.admin.router import router as admin_router
 from sqlalchemy import select
 
 from app.api.routers.make import router as make_router
@@ -23,10 +27,29 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="Barbershop Telegram Backend")
     app.state.settings = settings
+
+    cors_origins = [o.strip() for o in settings.admin_cors_origins.split(",") if o.strip()]
+    if cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
     app.state.engine = engine
     app.state.session_factory = session_factory
 
+    # Public media (master photos)
+    app.mount(
+        settings.media_url_prefix,
+        StaticFiles(directory=settings.media_root),
+        name="media",
+    )
+
     app.include_router(make_router)
+    app.include_router(admin_router)
 
     @app.get("/health")
     async def health() -> dict:
@@ -34,12 +57,18 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def on_startup() -> None:
+        # Ensure media directories exist
+        import os
+
+        os.makedirs(settings.media_root, exist_ok=True)
+        os.makedirs(os.path.join(settings.media_root, "masters"), exist_ok=True)
+
         # For local/dev convenience. In prod prefer alembic migrations.
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
-        if not settings.bot_token:
-            # Allow running API without Telegram bot (useful for local smoke tests)
+        if (not settings.enable_bot) or (not settings.bot_token):
+            # Allow running API without Telegram bot (useful for admin panel / smoke tests)
             app.state.bot = None
             app.state.dp = None
             app.state.make_client = None

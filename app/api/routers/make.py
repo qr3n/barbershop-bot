@@ -13,6 +13,8 @@ from app.bot.sender import send_text
 from app.db.models import Appointment, MakeRequest, MakeRequestStatus, Master, WorkingHours
 from app.services import booking
 from app.services.auth import admin_auth, make_auth
+from app.config import Settings, get_settings
+from app.services.media import build_public_url
 
 router = APIRouter(prefix="/make", tags=["make"])
 
@@ -28,6 +30,7 @@ class MasterOut(BaseModel):
     description: str | None = None
     experience_years: int | None = None
     is_active: bool
+    photo_url: str | None = None
 
 
 class MasterCreateIn(BaseModel):
@@ -93,7 +96,11 @@ async def make_callback(
 
 
 @router.post("/masters", dependencies=[Depends(admin_auth)], response_model=MasterOut)
-async def create_master(body: MasterCreateIn, session: AsyncSession = Depends(get_session)) -> MasterOut:
+async def create_master(
+    body: MasterCreateIn,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> MasterOut:
     m = Master(
         name=body.name,
         description=body.description,
@@ -109,11 +116,15 @@ async def create_master(body: MasterCreateIn, session: AsyncSession = Depends(ge
         description=m.description,
         experience_years=m.experience_years,
         is_active=m.is_active,
+        photo_url=(build_public_url(settings, relative_path=m.photo_path) if m.photo_path else None),
     )
 
 
 @router.get("/masters", dependencies=[Depends(make_auth)], response_model=list[MasterOut])
-async def list_masters(session: AsyncSession = Depends(get_session)) -> list[MasterOut]:
+async def list_masters(
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> list[MasterOut]:
     ms = (await session.execute(select(Master).order_by(Master.id))).scalars().all()
     return [
         MasterOut(
@@ -122,6 +133,7 @@ async def list_masters(session: AsyncSession = Depends(get_session)) -> list[Mas
             description=m.description,
             experience_years=m.experience_years,
             is_active=m.is_active,
+            photo_url=(build_public_url(settings, relative_path=m.photo_path) if m.photo_path else None),
         )
         for m in ms
     ]
