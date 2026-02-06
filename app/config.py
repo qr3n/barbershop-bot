@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     admin_cookie_domain: str | None = None  # e.g. ".example.com" to share across subdomains
     admin_cookie_secure: bool = True
     # Comma-separated origins, e.g. "https://admin.example.com"
-    admin_cors_origins: str = ""
+    admin_cors_origins: str = "https://barbershop.aidronik.com"
 
     @property
     def admin_ids(self) -> FrozenSet[int]:
