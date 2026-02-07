@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, time
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field
@@ -8,11 +9,14 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admin.api_auth import clear_admin_cookie, require_admin, set_admin_cookie
-from app.api.deps import get_session
+from app.api.deps import get_bot_manager, get_session
 from app.config import Settings, get_settings
 from app.db.models import Appointment, Master, WorkingHours
 from app.services import booking
 from app.services.media import build_public_url, compress_and_save_image, delete_media_file
+
+if TYPE_CHECKING:
+    from app.bot.manager import BotManager
 
 router = APIRouter(prefix="/admin", tags=["admin"]) 
 
@@ -335,3 +339,155 @@ async def cancel_appt(appointment_id: int, session: AsyncSession = Depends(get_s
         )
     except booking.AppointmentNotFound as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bot management endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class BotStatusOut(BaseModel):
+    status: str
+    started_at: datetime | None = None
+    error_message: str | None = None
+    bot_username: str | None = None
+
+
+class BotTokenIn(BaseModel):
+    token: str = Field(..., min_length=10, max_length=200)
+
+
+class BotLogOut(BaseModel):
+    id: int
+    level: str
+    message: str
+    details: str | None = None
+    created_at: datetime
+
+
+class BotSettingsOut(BaseModel):
+    is_enabled: bool
+    has_token: bool
+    token_from_db: bool
+
+
+@router.get("/bot/status", dependencies=[Depends(require_admin)], response_model=BotStatusOut)
+async def get_bot_status(
+    bot_manager: "BotManager" = Depends(get_bot_manager),
+) -> BotStatusOut:
+    """Get current bot status."""
+    state = bot_manager.state
+    return BotStatusOut(
+        status=state.status.value,
+        started_at=state.started_at,
+        error_message=state.error_message,
+        bot_username=state.bot_username,
+    )
+
+
+@router.get("/bot/settings", dependencies=[Depends(require_admin)], response_model=BotSettingsOut)
+async def get_bot_settings(
+    bot_manager: "BotManager" = Depends(get_bot_manager),
+    settings: Settings = Depends(get_settings),
+) -> BotSettingsOut:
+    """Get bot settings info."""
+    db_settings = await bot_manager.get_bot_settings()
+    has_db_token = db_settings is not None and db_settings.bot_token is not None
+    has_env_token = bool(settings.bot_token)
+    
+    return BotSettingsOut(
+        is_enabled=db_settings.is_enabled if db_settings else True,
+        has_token=has_db_token or has_env_token,
+        token_from_db=has_db_token,
+    )
+
+
+@router.get("/bot/logs", dependencies=[Depends(require_admin)], response_model=list[BotLogOut])
+async def get_bot_logs(
+    limit: int = 50,
+    bot_manager: "BotManager" = Depends(get_bot_manager),
+) -> list[BotLogOut]:
+    """Get recent bot logs."""
+    logs = await bot_manager.get_logs(limit=min(limit, 200))
+    return [
+        BotLogOut(
+            id=log.id,
+            level=log.level.value,
+            message=log.message,
+            details=log.details,
+            created_at=log.created_at,
+        )
+        for log in logs
+    ]
+
+
+@router.post("/bot/token", dependencies=[Depends(require_admin)])
+async def update_bot_token(
+    body: BotTokenIn,
+    bot_manager: "BotManager" = Depends(get_bot_manager),
+) -> dict:
+    """Update bot token and restart the bot."""
+    await bot_manager.update_bot_token(body.token)
+    success = await bot_manager.restart()
+    return {
+        "ok": success,
+        "status": bot_manager.state.status.value,
+        "error": bot_manager.state.error_message,
+    }
+
+
+@router.post("/bot/restart", dependencies=[Depends(require_admin)])
+async def restart_bot(
+    bot_manager: "BotManager" = Depends(get_bot_manager),
+) -> dict:
+    """Restart the bot with current settings."""
+    success = await bot_manager.restart()
+    return {
+        "ok": success,
+        "status": bot_manager.state.status.value,
+        "error": bot_manager.state.error_message,
+    }
+
+
+@router.post("/bot/stop", dependencies=[Depends(require_admin)])
+async def stop_bot(
+    bot_manager: "BotManager" = Depends(get_bot_manager),
+) -> dict:
+    """Stop the bot."""
+    await bot_manager.stop()
+    return {
+        "ok": True,
+        "status": bot_manager.state.status.value,
+    }
+
+
+@router.post("/bot/start", dependencies=[Depends(require_admin)])
+async def start_bot(
+    bot_manager: "BotManager" = Depends(get_bot_manager),
+) -> dict:
+    """Start the bot."""
+    success = await bot_manager.start()
+    return {
+        "ok": success,
+        "status": bot_manager.state.status.value,
+        "error": bot_manager.state.error_message,
+    }
+
+
+@router.post("/bot/enable", dependencies=[Depends(require_admin)])
+async def enable_bot(
+    enabled: bool = True,
+    bot_manager: "BotManager" = Depends(get_bot_manager),
+) -> dict:
+    """Enable or disable the bot."""
+    await bot_manager.set_enabled(enabled)
+    if enabled:
+        success = await bot_manager.start()
+    else:
+        await bot_manager.stop()
+        success = True
+    return {
+        "ok": success,
+        "status": bot_manager.state.status.value,
+        "error": bot_manager.state.error_message,
+    }

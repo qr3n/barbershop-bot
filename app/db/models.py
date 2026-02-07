@@ -104,3 +104,32 @@ class MakeRequest(Base):
 
 Index("ix_appointments_master_time", Appointment.master_id, Appointment.start_at, Appointment.end_at)
 Index("ix_appointments_customer_time", Appointment.customer_telegram_id, Appointment.start_at)
+
+
+class BotSettings(Base):
+    """Singleton table for bot configuration (always id=1)."""
+    __tablename__ = "bot_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    bot_token: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class BotLogLevel(str, enum.Enum):
+    info = "info"
+    warning = "warning"
+    error = "error"
+
+
+class BotLog(Base):
+    """Logs for bot lifecycle events."""
+    __tablename__ = "bot_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    level: Mapped[BotLogLevel] = mapped_column(Enum(BotLogLevel), default=BotLogLevel.info)
+    message: Mapped[str] = mapped_column(String(1000))
+    details: Mapped[str | None] = mapped_column(String(5000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
