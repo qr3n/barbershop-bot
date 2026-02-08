@@ -17,26 +17,38 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Create bot_settings table
-    op.create_table(
-        'bot_settings',
-        sa.Column('id', sa.Integer(), primary_key=True),
-        sa.Column('bot_token', sa.String(200), nullable=True),
-        sa.Column('is_enabled', sa.Boolean(), nullable=False, server_default='true'),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-    )
+    # Create bot_settings table (idempotent)
+    op.execute('''
+        CREATE TABLE IF NOT EXISTS bot_settings (
+            id SERIAL PRIMARY KEY,
+            bot_token VARCHAR(200),
+            is_enabled BOOLEAN NOT NULL DEFAULT true,
+            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+        )
+    ''')
     
-    # Create bot_logs table
-    op.create_table(
-        'bot_logs',
-        sa.Column('id', sa.Integer(), primary_key=True),
-        sa.Column('level', sa.Enum('info', 'warning', 'error', name='botloglevel'), nullable=False, server_default='info'),
-        sa.Column('message', sa.String(1000), nullable=False),
-        sa.Column('details', sa.String(5000), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now(), index=True),
-    )
+    # Create enum type if not exists
+    op.execute('''
+        DO $$ BEGIN
+            CREATE TYPE botloglevel AS ENUM ('info', 'warning', 'error');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$
+    ''')
     
-    op.create_index('ix_bot_logs_created_at', 'bot_logs', ['created_at'])
+    # Create bot_logs table (idempotent)
+    op.execute('''
+        CREATE TABLE IF NOT EXISTS bot_logs (
+            id SERIAL PRIMARY KEY,
+            level botloglevel NOT NULL DEFAULT 'info',
+            message VARCHAR(1000) NOT NULL,
+            details VARCHAR(5000),
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+        )
+    ''')
+    
+    # Create index (idempotent)
+    op.execute('CREATE INDEX IF NOT EXISTS ix_bot_logs_created_at ON bot_logs (created_at)')
 
 
 def downgrade() -> None:
