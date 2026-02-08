@@ -58,6 +58,24 @@ class WorkingHoursIn(BaseModel):
     end_time: str
 
 
+class WorkingHoursOut(BaseModel):
+    id: int
+    master_id: int
+    day_of_week: int
+    start_time: str
+    end_time: str
+
+
+class MasterWithWorkingHoursOut(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    experience_years: int | None
+    is_active: bool
+    photo_url: str | None = None
+    working_hours: list[WorkingHoursOut] = []
+
+
 class AppointmentOut(BaseModel):
     id: int
     master_id: int
@@ -90,13 +108,36 @@ async def me() -> dict:
     return {"ok": True}
 
 
-@router.get("/masters", dependencies=[Depends(require_admin)], response_model=list[MasterOut])
+@router.get("/masters", dependencies=[Depends(require_admin)], response_model=list[MasterWithWorkingHoursOut])
 async def list_masters(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
-) -> list[MasterOut]:
-    rows = (await session.execute(select(Master).order_by(Master.id))).scalars().all()
-    return [_master_out(m, settings=settings) for m in rows]
+) -> list[MasterWithWorkingHoursOut]:
+    from sqlalchemy.orm import selectinload
+    rows = (await session.execute(
+        select(Master).options(selectinload(Master.working_hours)).order_by(Master.id)
+    )).scalars().all()
+    return [
+        MasterWithWorkingHoursOut(
+            id=m.id,
+            name=m.name,
+            description=m.description,
+            experience_years=m.experience_years,
+            is_active=m.is_active,
+            photo_url=(build_public_url(settings, relative_path=m.photo_path) if m.photo_path else None),
+            working_hours=[
+                WorkingHoursOut(
+                    id=wh.id,
+                    master_id=wh.master_id,
+                    day_of_week=wh.day_of_week,
+                    start_time=wh.start_time.strftime("%H:%M"),
+                    end_time=wh.end_time.strftime("%H:%M"),
+                )
+                for wh in m.working_hours
+            ],
+        )
+        for m in rows
+    ]
 
 
 @router.post("/masters", dependencies=[Depends(require_admin)], response_model=MasterOut, status_code=201)
