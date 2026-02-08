@@ -1,7 +1,7 @@
 """Bot settings and logs tables
 
 Revision ID: 0004
-Revises: 0003
+Revises: 0003_master_photo_path
 Create Date: 2024-01-01 00:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '0004'
-down_revision = '0003'
+down_revision = '0003_master_photo_path'
 branch_labels = None
 depends_on = None
 
