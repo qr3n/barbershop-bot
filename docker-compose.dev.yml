@@ -34,3 +34,4 @@ services:
 
 volumes:
   barbershop_pgdata:
+
